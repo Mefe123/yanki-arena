@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2f7fd8" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Yankı Arena</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23120f22%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%278%27 fill=%27none%27 stroke=%27%23ff7a3d%27 stroke-width=%273%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%272%27 fill=%27%233dd6c4%27/%3E%3C/svg%3E" />
+  <meta name="description" content="Tarayıcıda, kurulum gerektirmeyen çok oyunculu arena nişancı oyunu. Oda aç, bağlantıyı paylaş, oyna." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- Lobi -->
+  <section id="lobby" class="screen">
+    <div class="lobby-card">
+      <p class="eyebrow">Tarayıcıda çok oyunculu arena</p>
+      <h1>Yankı<span>Arena</span></h1>
+      <p class="lede">Bir oda aç, bağlantıyı arkadaşlarına gönder. Kurulum yok, hesap yok; odayı açanın tarayıcısı sunucu olur.</p>
+
+      <label class="field">
+        <span>Adın</span>
+        <input id="name" maxlength="16" autocomplete="nickname" placeholder="ör. Kıvılcım" />
+      </label>
+
+      <div class="actions">
+        <button id="host" class="btn primary">Oda aç</button>
+        <div class="join">
+          <input id="code" maxlength="8" placeholder="ODA KODU" autocomplete="off" spellcheck="false" />
+          <button id="joinBtn" class="btn">Odaya katıl</button>
+        </div>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <p class="touch-help">Sol başparmak: hareket · sağ başparmak: bakış · ateş düğmesine basılıyken sürükleyerek nişan alırsın. En iyi deneyim için telefonu yatay tut.</p>
+      <dl class="keys">
+        <div><dt>WASD</dt><dd>hareket</dd></div>
+        <div><dt>Boşluk</dt><dd>zıpla</dd></div>
+        <div><dt>Sol tık</dt><dd>ateş</dd></div>
+        <div><dt>R</dt><dd>şarjör</dd></div>
+        <div><dt>Tab</dt><dd>skor</dd></div>
+        <div><dt>Esc</dt><dd>imleci bırak</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- Oyun içi arayüz -->
+  <section id="hud" hidden>
+    <div class="crosshair"><i></i><i></i><i></i><i></i></div>
+    <div id="hitmarker" class="hitmarker"></div>
+    <div id="vignette" class="vignette"></div>
+
+    <div class="top-left">
+      <div class="badge">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="17" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M32 4v16M32 44v16M4 32h16M44 32h16" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/><circle cx="32" cy="32" r="4" fill="#ff7a3d"/></svg>
+        <b id="clock">00:00</b>
+      </div>
+      <div class="kd"><span>Leş <b id="myK">0</b></span><span>Ölüm <b id="myD">0</b></span></div>
+    </div>
+
+    <div id="warmup" class="warmup">Isınma <span>· rakip bekleniyor</span></div>
+
+    <div class="top-right">
+      <div class="minimap"><canvas id="minimap" width="360" height="360"></canvas></div>
+      <div class="room">Oda <b id="roomCode">—</b> <button id="copyLink" class="mini">Bağlantıyı kopyala</button></div>
+      <div class="net"><span id="role"></span> · <span id="ping">—</span></div>
+    </div>
+
+    <ol id="feed" class="feed"></ol>
+
+    <div class="bottom-bar">
+      <div id="reloading" class="reloading" hidden>Şarjör değişiyor</div>
+      <div class="slots">
+        <div class="slot active">
+          <i class="slot-key">1</i>
+          <svg viewBox="0 0 220 70" aria-hidden="true"><path fill="currentColor" d="M8 30h22l6-6h70l4-6h10v6h48v6h40v6h-40v4h-12l-4 18h-14l3-18h-25l-6 22H86l6-22H58l-4 6H30l-4 12H8l6-18H8z"/></svg>
+          <span class="slot-name">Darbe tüfeği</span>
+          <span class="slot-ammo"><b id="ammo">18</b>/<i id="mag">18</i></span>
+        </div>
+      </div>
+      <div class="hp">
+        <span class="hp-label">HP <b id="hpNum">100</b></span>
+        <div class="bar"><div id="hpBar"></div><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+
+    <div id="board" class="board" hidden>
+      <h2>Skor tablosu</h2>
+      <table>
+        <thead><tr><th>Oyuncu</th><th>Leş</th><th>Ölüm</th></tr></thead>
+        <tbody id="boardBody"></tbody>
+      </table>
+    </div>
+
+    <div id="dead" class="dead" hidden>
+      <p class="dead-title">Elendin</p>
+      <p id="deadBy"></p>
+      <p class="dead-count">Yeniden doğma: <b id="respawn">3</b></p>
+    </div>
+
+    <div id="touch" class="touch" hidden>
+      <div class="move-zone"></div>
+      <div class="look-zone"></div>
+      <div class="stick"><i></i></div>
+      <button class="tbtn fire" data-btn="fire" aria-label="Ateş">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="11" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M24 4v10M24 34v10M4 24h10M34 24h10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>
+      </button>
+      <button class="tbtn jump" data-btn="jump" aria-label="Zıpla">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 10l-12 13h8v13h8V23h8z" fill="currentColor"/></svg>
+      </button>
+      <button class="tbtn reload" data-btn="reload" aria-label="Şarjör değiştir">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M36 20a13 13 0 1 0 1 9" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M38 10v11H27z" fill="currentColor"/></svg>
+      </button>
+      <button class="tbtn board-btn" data-btn="board" aria-label="Skor tablosu">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 14h28M10 24h28M10 34h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div id="clickToPlay" class="click-to-play">
+      <p>Oynamak için tıkla</p>
+      <small>Esc ile imleci bırakırsın · Tab ile skor tablosu</small>
+    </div>
+  </section>
+
+  <div class="rotate" aria-hidden="true">
+    <svg viewBox="0 0 64 64"><rect x="20" y="8" width="24" height="44" rx="4" fill="none" stroke="currentColor" stroke-width="3"/><path d="M50 40a18 18 0 0 1-18 18" fill="none" stroke="currentColor" stroke-width="3"/><path d="M28 54l4 4-4 4" fill="none" stroke="currentColor" stroke-width="3"/></svg>
+    <p>Oynamak için telefonu yatay çevir</p>
+  </div>
+
+  <!-- Bağlantı koptu -->
+  <section id="ended" class="screen" hidden>
+    <div class="lobby-card ended-card">
+      <p class="eyebrow">Oyun sona erdi</p>
+      <h2 id="endedMsg">Oda sahibi oyundan ayrıldı.</h2>
+      <p class="lede">Oyun odayı açan kişinin tarayıcısında çalışıyordu. Yeni bir oda açarak devam edebilirsin.</p>
+      <button id="backBtn" class="btn primary">Ana menüye dön</button>
+    </div>
+  </section>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
