@@ -14,6 +14,9 @@ import { Hud } from './hud';
 import { Input } from './input';
 import { TouchControls, isTouchDevice } from './touch';
 import { World } from './world';
+import { Menu } from './menu';
+import { sfx } from './audio';
+import { settings, updateSettings } from './settings';
 
 interface Snap { tick: number; ps: Map<string, NetPlayer> }
 
@@ -22,6 +25,7 @@ export class Game {
   private input: Input;
   private hud: Hud;
   private touch: TouchControls | null = null;
+  private menu: Menu;
   private myId: string | null = null;
 
   // tahmin
@@ -45,20 +49,37 @@ export class Game {
   private last = performance.now();
   private pingTimer = 0;
   private running = true;
-  onEnd: (reason: string) => void = () => {};
+  /** reason null: oyuncu kendi isteğiyle çıktı */
+  onEnd: (reason: string | null) => void = () => {};
 
   constructor(private conn: Connection, canvas: HTMLCanvasElement, name: string) {
     const touch = isTouchDevice();
     this.world = new World(canvas, touch);
     this.input = new Input(canvas);
     this.hud = new Hud(conn.info);
-    this.input.onLockChange = (l) => this.hud.setLocked(l);
+    this.menu = new Menu(conn.info.code, touch);
+    this.menu.announce = (t) => this.hud.announce(t);
+    this.menu.onOpenChange = (open) => {
+      this.input.suspended = open;
+      if (open) { this.input.keys.clear(); this.input.fire = false; this.input.stick = null; }
+      document.getElementById('touch')?.classList.toggle('dim', open);
+    };
+    this.menu.onResume = () => { if (!touch) this.input.lock(); };
+    this.menu.onLeave = () => this.end(null);
+    // masaüstünde imleç bırakılınca (Esc) menü açılır
+    this.input.onLockChange = (l) => { if (l) this.menu.hide(); else if (!touch) this.menu.show(); };
     this.input.onScoreboard = (s) => this.hud.showBoard(s);
-    this.hud.onClickToPlay = () => this.input.lock();
+    this.input.onEscape = () => this.menu.show();
+    this.input.onMute = () => {
+      updateSettings({ muted: !settings.muted });
+      this.hud.notice(settings.muted ? 'Ses kapalı (M)' : 'Ses açık (M)');
+      this.hud.announce(settings.muted ? 'Ses kapatıldı' : 'Ses açıldı');
+    };
     if (touch) {
       // dokunmatikte imleç kilidi yok: kontroller hemen hazır
       this.touch = new TouchControls(this.input, (s) => this.hud.showBoard(s));
-      this.hud.setLocked(true);
+    } else {
+      this.menu.show();
     }
 
     conn.onMessage = (m) => this.onMessage(m);
@@ -112,6 +133,7 @@ export class Game {
         };
         if (!this.wasAlive || !this.pred) {
           // ilk doğuş ya da yeniden doğma: sunucunun verdiği yön ve konum
+          if (this.pred) { sfx.respawn(); this.hud.announce('Yeniden doğdun'); }
           this.pending = [];
           this.yaw = me.yaw;
           this.pitch = 0;
@@ -133,6 +155,7 @@ export class Game {
         }
       } else {
         this.pending = [];
+        if (this.wasAlive) sfx.death();
       }
       this.wasAlive = me.alive;
       this.hud.setSelf(me, this.names);
@@ -147,25 +170,43 @@ export class Game {
     const color = (id: string) => this.names.get(id)?.color ?? '#fff';
     switch (e.e) {
       case 'shot':
-        if (e.by === this.myId) return; // kendi izimizi zaten tahminle çizdik
+        if (e.by === this.myId) {
+          // kendi izimizi zaten tahminle çizdik; isabeti sunucu söyler
+          if (e.hit) sfx.hit(e.head);
+          return;
+        }
         this.lastShotAt.set(e.by, performance.now());
+        sfx.shot({ x: e.from[0], y: e.from[1], z: e.from[2] }, this.world.camera.position);
         this.world.tracer(new THREE.Vector3(...e.from), new THREE.Vector3(...e.to), color(e.by), false);
         break;
       case 'dmg':
         if (e.by === this.myId) this.hud.hit(false);
-        if (e.victim === this.myId) this.hud.hurt();
+        if (e.victim === this.myId) { this.hud.hurt(); sfx.hurt(); }
         { const a = this.world.avatars.get(e.victim); if (a) a.hitFlash = 1; }
         break;
       case 'kill':
-        if (e.by === this.myId) this.hud.hit(true);
+        if (e.by === this.myId) {
+          this.hud.hit(true);
+          sfx.kill();
+          this.hud.announce(`${name(e.victim)} oyuncusunu vurdun${e.head ? ', kafadan' : ''}`);
+        }
         this.hud.feed(name(e.by), color(e.by), name(e.victim), color(e.victim), e.head);
-        if (e.victim === this.myId) this.hud.killedBy(name(e.by), color(e.by));
+        if (e.victim === this.myId) {
+          this.hud.killedBy(name(e.by), color(e.by));
+          this.hud.alert(`Elendin. ${name(e.by)} seni vurdu. Birkaç saniye içinde yeniden doğacaksın.`);
+        }
         break;
       case 'join':
-        if (e.id !== this.myId) this.hud.notice(`${e.name} odaya katıldı`);
+        if (e.id !== this.myId) {
+          this.hud.notice(`${e.name} odaya katıldı`);
+          this.hud.announce(`${e.name} odaya katıldı`);
+          sfx.chime(true);
+        }
         break;
       case 'leave':
         this.hud.notice(`${e.name} ayrıldı`);
+        this.hud.announce(`${e.name} odadan ayrıldı`);
+        sfx.chime(false);
         break;
     }
   }
@@ -215,14 +256,16 @@ export class Game {
       pitch: this.pitch,
       view: Math.floor(this.renderTick),
     };
-    this.prevPred = copyMoveState(this.pred);
+    const prev = this.prevPred = copyMoveState(this.pred);
     const fired = stepPlayer(this.pred, cmd, DT, MAP_BOXES);
+    this.selfSounds(prev, this.pred, cmd);
     this.pending.push(cmd);
     if (this.pending.length > 90) this.pending.shift();
     this.conn.send({ t: 'in', cmds: [cmd] });
 
     if (fired) {
       this.world.muzzle();
+      sfx.shot();
       // izi yalnızca haritaya göre çiz; oyuncuya isabeti sunucu söyler
       const o = eyePos(this.pred);
       const d = viewDir(this.yaw, this.pitch);
@@ -240,7 +283,27 @@ export class Game {
     }
   }
 
+  private stepDist = 0;
+  private otherSteps = new Map<string, number>();
+
+  /** Kendi hareketimizin sesleri: adım, zıplama, iniş, şarjör */
+  private selfSounds(a: MoveState, b: MoveState, cmd: InputCmd) {
+    if (b.ground) {
+      this.stepDist += Math.hypot(b.x - a.x, b.z - a.z);
+      if (this.stepDist > 2.2) { this.stepDist = 0; sfx.step(); }
+    }
+    if (a.ground && !b.ground && b.vy > 0) sfx.jump();
+    if (!a.ground && b.ground && a.vy < -6) sfx.land();
+    if (a.reload === 0 && b.reload > 0) {
+      if (a.ammo === 0 && cmd.fire) sfx.empty();
+      sfx.reloadOut();
+      this.hud.announce('Şarjör değişiyor');
+    }
+    if (a.reload > 0 && b.reload === 0) sfx.reloadIn();
+  }
+
   private othersCache: NetPlayer[] = [];
+  private lastPos = new Map<string, { x: number; z: number }>();
   private othersNow() { return this.othersCache; }
 
   private drawOthers(dt: number) {
@@ -269,6 +332,17 @@ export class Game {
       const alive = k < 0.5 ? pa.alive : pb.alive;
       const av = this.world.avatar(pb.id, pb.name, pb.color);
       av.set(x, y, z, yaw, pitch, alive, pb.hp, dt);
+      // diğer oyuncuların ayak sesi (konumsal; yakındakiler duyulur)
+      const last = this.lastPos.get(pb.id);
+      if (last && alive && pb.g && !jump) {
+        const d = (this.otherSteps.get(pb.id) ?? 0) + Math.hypot(x - last.x, z - last.z);
+        const cam = this.world.camera.position;
+        if (d > 2.2) {
+          this.otherSteps.set(pb.id, 0);
+          if (Math.hypot(x - cam.x, z - cam.z) < 30) sfx.step({ x, y, z });
+        } else this.otherSteps.set(pb.id, d);
+      }
+      this.lastPos.set(pb.id, { x, z });
       if (alive) this.othersCache.push({ ...pb, x, y, z });
     }
   }
@@ -300,6 +374,7 @@ export class Game {
       this.world.setGunVisible(false);
     }
     this.world.render(dt, moving);
+    sfx.listener(cam.position, this.yaw);
 
     // mini harita: kendin + son 2 saniyede ateş eden rakipler
     const now = performance.now();
@@ -315,7 +390,7 @@ export class Game {
 
   private lastShotAt = new Map<string, number>();
 
-  private end(reason: string) {
+  private end(reason: string | null) {
     if (!this.running) return;
     this.dispose();
     this.onEnd(reason);
@@ -327,6 +402,7 @@ export class Game {
     clearInterval(this.pingTimer);
     window.removeEventListener('resize', this.onResize);
     this.input.dispose();
+    this.menu.dispose();
     this.touch?.dispose();
     this.hud.hide();
     this.world.dispose();

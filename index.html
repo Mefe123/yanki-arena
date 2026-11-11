@@ -18,25 +18,32 @@
   <canvas id="view"></canvas>
 
   <!-- Lobi -->
-  <section id="lobby" class="screen">
+  <main id="lobby" class="screen">
     <div class="lobby-card">
       <p class="eyebrow">Tarayıcıda çok oyunculu arena</p>
-      <h1>Yankı<span>Arena</span></h1>
+      <h1>Yankı <span>Arena</span></h1>
       <p class="lede">Bir oda aç, bağlantıyı arkadaşlarına gönder. Kurulum yok, hesap yok; odayı açanın tarayıcısı sunucu olur.</p>
 
       <label class="field">
         <span>Adın</span>
-        <input id="name" maxlength="16" autocomplete="nickname" placeholder="ör. Kıvılcım" />
+        <input id="name" maxlength="16" autocomplete="nickname" placeholder="ör. Kıvılcım" enterkeyhint="go" />
       </label>
 
       <div class="actions">
-        <button id="host" class="btn primary">Oda aç</button>
+        <button id="host" type="button" class="btn primary">Oda aç</button>
         <div class="join">
-          <input id="code" maxlength="8" placeholder="ODA KODU" autocomplete="off" spellcheck="false" />
-          <button id="joinBtn" class="btn">Odaya katıl</button>
+          <label class="sr-only" for="code">Oda kodu</label>
+          <input id="code" maxlength="8" placeholder="ODA KODU" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="codeHelp" enterkeyhint="join" />
+          <button id="joinBtn" type="button" class="btn">Odaya katıl</button>
         </div>
+        <p id="codeHelp" class="hint">Arkadaşının gönderdiği 5 harfli kod ya da davet bağlantısı.</p>
       </div>
-      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <div class="status-row">
+        <span id="spinner" class="spinner" hidden aria-hidden="true"></span>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <span id="elapsed" class="elapsed" aria-hidden="true"></span>
+        <button id="cancelJoin" type="button" class="mini" hidden>Vazgeç</button>
+      </div>
 
       <p class="touch-help">Sol başparmak: hareket · sağ başparmak: bakış · ateş düğmesine basılıyken sürükleyerek nişan alırsın. En iyi deneyim için telefonu yatay tut.</p>
       <dl class="keys">
@@ -45,16 +52,19 @@
         <div><dt>Sol tık</dt><dd>ateş</dd></div>
         <div><dt>R</dt><dd>şarjör</dd></div>
         <div><dt>Tab</dt><dd>skor</dd></div>
-        <div><dt>Esc</dt><dd>imleci bırak</dd></div>
+        <div><dt>Esc</dt><dd>menü</dd></div>
+        <div><dt>M</dt><dd>sesi kapat</dd></div>
       </dl>
     </div>
-  </section>
+  </main>
 
   <!-- Oyun içi arayüz -->
-  <section id="hud" hidden>
-    <div class="crosshair"><i></i><i></i><i></i><i></i></div>
-    <div id="hitmarker" class="hitmarker"></div>
-    <div id="vignette" class="vignette"></div>
+  <section id="hud" hidden aria-label="Oyun">
+    <div id="announce" class="sr-only" role="status" aria-live="polite"></div>
+    <div id="alert" class="sr-only" role="alert"></div>
+    <div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div id="hitmarker" class="hitmarker" aria-hidden="true"></div>
+    <div id="vignette" class="vignette" aria-hidden="true"></div>
 
     <div class="top-left">
       <div class="badge">
@@ -118,13 +128,41 @@
         <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M36 20a13 13 0 1 0 1 9" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M38 10v11H27z" fill="currentColor"/></svg>
       </button>
       <button class="tbtn board-btn" data-btn="board" aria-label="Skor tablosu">
-        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 14h28M10 24h28M10 34h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M15 8h18v9a9 9 0 0 1-18 0zM15 11H8v3a7 7 0 0 0 7 7M33 11h7v3a7 7 0 0 1-7 7M24 26v7M16 40h16M19 33h10v7H19z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>
       </button>
     </div>
 
-    <div id="clickToPlay" class="click-to-play">
-      <p>Oynamak için tıkla</p>
-      <small>Esc ile imleci bırakırsın · Tab ile skor tablosu</small>
+    <button id="menuBtn" type="button" class="menu-btn" hidden aria-expanded="false" aria-label="Menü (Esc)" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    </button>
+
+    <div id="menu" class="menu" hidden role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+      <div class="menu-card">
+        <div class="menu-head">
+          <h2 id="menuTitle">Menü</h2>
+          <p class="menu-note">Oyun arkada sürüyor: diğer oyuncular seni görebilir.</p>
+        </div>
+        <div class="menu-actions">
+          <button id="resume" type="button" class="btn primary">Oyuna dön</button>
+          <button id="share" type="button" class="btn">Davet bağlantısını paylaş</button>
+          <button id="leave" type="button" class="btn danger">Odadan çık</button>
+        </div>
+        <fieldset class="opts">
+          <legend>Ayarlar</legend>
+          <label class="opt"><span>Ses düzeyi <output id="volOut">70</output></span>
+            <input id="optVol" type="range" min="0" max="100" step="5" /></label>
+          <label class="opt check"><input id="optMute" type="checkbox" /> <span id="muteLabel">Sesi kapat (M)</span></label>
+          <label class="opt"><span><span id="sensLabel">Fare hassasiyeti</span> <output id="sensOut">1.0</output></span>
+            <input id="optSens" type="range" min="0.3" max="3" step="0.1" /></label>
+          <label class="opt check"><input id="optInvert" type="checkbox" /> <span>Dikey bakışı ters çevir</span></label>
+          <label class="opt"><span>Görüş açısı <output id="fovOut">75°</output></span>
+            <input id="optFov" type="range" min="60" max="100" step="1" /></label>
+          <label class="opt check"><input id="optFx" type="checkbox" /> <span>Hareket efektlerini azalt</span></label>
+          <label class="opt"><span>Nişangâh rengi</span>
+            <select id="optXh"></select></label>
+        </fieldset>
+        <p class="menu-hint" id="menuHint">Oyuna dönmek için Esc ya da "Oyuna dön". Klavye: Sekme tuşuyla gezin.</p>
+      </div>
     </div>
   </section>
 
@@ -134,12 +172,12 @@
   </div>
 
   <!-- Bağlantı koptu -->
-  <section id="ended" class="screen" hidden>
+  <section id="ended" class="screen" hidden role="alertdialog" aria-labelledby="endedMsg">
     <div class="lobby-card ended-card">
       <p class="eyebrow">Oyun sona erdi</p>
       <h2 id="endedMsg">Oda sahibi oyundan ayrıldı.</h2>
       <p class="lede">Oyun odayı açan kişinin tarayıcısında çalışıyordu. Yeni bir oda açarak devam edebilirsin.</p>
-      <button id="backBtn" class="btn primary">Ana menüye dön</button>
+      <button id="backBtn" type="button" class="btn primary">Ana menüye dön</button>
     </div>
   </section>
 

@@ -7,7 +7,9 @@ import {
   plasterTexture, sandTexture, stoneTexture,
 } from './textures';
 
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+import { onSettings, settings } from './settings';
+
+const reduced = () => settings.reduceFx;
 
 /** BoxGeometry UV'lerini dünya ölçüsüne göre ölçekler: doku her kutuda aynı büyüklükte görünür */
 function worldUvBox(sx: number, sy: number, sz: number, tile: number) {
@@ -85,8 +87,14 @@ export class World {
 
     this.flashLight = new THREE.PointLight(0xffc27a, 0, 7, 2);
     this.scene.add(this.flashLight);
+    this.unsub = onSettings((st) => {
+      this.camera.fov = st.fov;
+      this.camera.updateProjectionMatrix();
+    });
     this.resize();
   }
+
+  private unsub: () => void;
 
   private track<T extends { dispose(): void }>(d: T): T {
     this.disposables.push(d);
@@ -475,12 +483,13 @@ export class World {
 
   render(dt: number, moving: boolean) {
     this.recoil = Math.max(0, this.recoil - dt * 10);
-    if (moving && !reducedMotion) this.bob += dt * 10;
+    const kick = reduced() ? 0.3 : 1;
+    if (moving && !reduced()) this.bob += dt * 10;
     this.reloadT += ((this.reloadAnim ? 1 : 0) - this.reloadT) * Math.min(1, dt * 10);
-    const by = reducedMotion ? 0 : Math.abs(Math.sin(this.bob)) * 0.012;
-    const bx = reducedMotion ? 0 : Math.cos(this.bob) * 0.009;
-    this.gun.position.set(0.2 + bx, -0.21 + by - this.reloadT * 0.12, -0.42 + this.recoil * 0.05);
-    this.gun.rotation.set(this.recoil * 0.09 + this.reloadT * 0.5, 0.06, this.reloadT * 0.4);
+    const by = reduced() ? 0 : Math.abs(Math.sin(this.bob)) * 0.012;
+    const bx = reduced() ? 0 : Math.cos(this.bob) * 0.009;
+    this.gun.position.set(0.2 + bx, -0.21 + by - this.reloadT * 0.12, -0.42 + this.recoil * 0.05 * kick);
+    this.gun.rotation.set(this.recoil * 0.09 * kick + this.reloadT * 0.5, 0.06, this.reloadT * 0.4);
 
     const fm = this.flash.material as THREE.MeshBasicMaterial;
     fm.opacity = Math.max(0, fm.opacity - dt * 24);
@@ -510,6 +519,7 @@ export class World {
   setGunVisible(v: boolean) { this.gun.visible = v; }
 
   dispose() {
+    this.unsub();
     for (const a of this.avatars.values()) a.dispose();
     this.avatars.clear();
     for (const f of this.fx) { f.obj.geometry.dispose(); (f.obj.material as THREE.Material).dispose(); }
@@ -681,7 +691,7 @@ export class Avatar {
 
     // yürüme döngüsü
     const k = Math.min(1, this.speed / 6);
-    if (!reducedMotion) this.phase += dt * (4 + this.speed * 1.2) * (k > 0.05 ? 1 : 0);
+    this.phase += dt * (4 + this.speed * 1.2) * (k > 0.05 ? 1 : 0);
     const s = Math.sin(this.phase) * 0.7 * k;
     this.legL.rotation.x = s;
     this.legR.rotation.x = -s;

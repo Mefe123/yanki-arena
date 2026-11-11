@@ -92,7 +92,7 @@ export function hostGame(code: string): Connection {
 }
 
 /** Odaya katıl: oda sahibini bulana kadar bekler. */
-export function joinGame(code: string): Promise<Connection> {
+export function joinGame(code: string, signal?: AbortSignal): Promise<Connection> {
   return new Promise((resolve, reject) => {
     const room = openRoom(code);
     const toServer = room.makeAction<any>('c');
@@ -117,6 +117,13 @@ export function joinGame(code: string): Promise<Connection> {
       },
       info: { code, isHost: false, peers: () => Object.keys(room.getPeers()).length },
     };
+
+    signal?.addEventListener('abort', () => {
+      if (hostId) return;
+      clearTimeout(timeout);
+      conn.close();
+      reject(new Error('Arama iptal edildi.'));
+    });
 
     const fail = (reason: string) => {
       if (closed) return;

@@ -25,7 +25,8 @@ export class Hud {
   private feedEl = $('feed');
   private hitmarker = $('hitmarker');
   private vignette = $('vignette');
-  private clickToPlay = $('clickToPlay');
+  private live = $('announce');
+  private alertEl = $('alert');
   private ping = $('ping');
   private clock = $('clock');
   private warmup = $('warmup');
@@ -38,7 +39,6 @@ export class Hud {
   private lastBoard = '';
   private hitTimer = 0;
   private hurtTimer = 0;
-  onClickToPlay: () => void = () => {};
 
   constructor(info: Connection['info']) {
     this.root.hidden = false;
@@ -52,10 +52,19 @@ export class Hud {
       catch { copy.textContent = url; }
       setTimeout(() => (copy.textContent = 'Bağlantıyı kopyala'), 1800);
     };
-    this.clickToPlay.onclick = () => this.onClickToPlay();
   }
 
-  setLocked(l: boolean) { this.clickToPlay.hidden = l; }
+  /** Ekran okuyucuya kibarca duyur (sıradaki konuşmayı kesmez) */
+  announce(text: string) {
+    this.live.textContent = '';
+    setTimeout(() => (this.live.textContent = text), 30);
+  }
+
+  /** Acil duyuru (ör. elendin) */
+  alert(text: string) {
+    this.alertEl.textContent = '';
+    setTimeout(() => (this.alertEl.textContent = text), 30);
+  }
 
   setPing(ms: number, isHost: boolean) {
     this.ping.textContent = isHost ? 'gecikme yok' : `${Math.round(ms)} ms`;

@@ -10,6 +10,12 @@ Teknoloji: Vite + TypeScript + Three.js, P2P için [Trystero](https://github.com
 
 Telefon ya da tablette dokunmatik kontroller kendiliğinden açılır: sol başparmakla sanal çubuk (hareket), sağ tarafı sürükleyerek bakış, kırmızı düğme ateş (basılıyken sürükleyerek nişan alınır), ok zıplama, döngü şarjör, üç çizgi skor tablosu. İlk dokunuşta tam ekrana geçer; dikey tutulursa "yatay çevir" uyarısı çıkar. Telefonda piksel oranı ve gölge çözünürlüğü düşürülür.
 
+## Ses, menü ve erişilebilirlik
+
+- **Sesler kodla üretilir** (Web Audio, dosya yok): atış, isabet tıkı, öldürme çanı, yaralanma, ölme, yeniden doğma, adım, zıplama, iniş, şarjör. Diğer oyuncuların atış ve ayak sesleri konumsaldır (yön ve uzaklık duyulur; uzaktaki atış boğuklaşır). M tuşu sesi kapatır.
+- **Menü** (Esc ya da üstteki ≡ düğmesi): oyuna dön, davet bağlantısını paylaş (telefonda paylaşım menüsü), odadan çık. Ayarlar: ses düzeyi, fare/dokunmatik hassasiyeti, dikey bakışı ters çevirme, görüş açısı, hareket efektlerini azaltma, nişangâh rengi. Ayarlar tarayıcıda saklanır.
+- **Erişilebilirlik:** Menü bir diyalogdur; açılınca odak içeri girer, Tab menü içinde döner, Esc kapatır. Bütün alanların etiketi var, odak çerçeveleri belirgin. Ekran okuyucuya önemli olaylar duyurulur (vurdun, elendin, yeniden doğdun, biri katıldı/ayrıldı, şarjör). Sistemde "hareketi azalt" açıksa efektler kendiliğinden azalır. Odaya katılırken arama iptal edilebilir.
+
 ## Çalıştırma
 
 ```bash

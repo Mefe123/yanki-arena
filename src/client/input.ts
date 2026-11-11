@@ -1,10 +1,15 @@
 // Klavye + fare. Fare bakışı yalnızca imleç kilitliyken çalışır.
+import { settings } from './settings';
 export class Input {
   keys = new Set<string>();
   fire = false;
   private dx = 0;
   private dy = 0;
-  sensitivity = 0.0022;
+  private readonly baseSens = 0.0022;
+  /** Menü açıkken oyun girdisi alınmaz (Tab vb. menüde gezinmek için serbest kalır) */
+  suspended = false;
+  onMute: () => void = () => {};
+  onEscape: () => void = () => {};
   /** Dokunmatik sanal çubuk (varsa klavyenin yerine geçer) */
   stick: { f: number; s: number } | null = null;
   onLockChange: (locked: boolean) => void = () => {};
@@ -32,7 +37,8 @@ export class Input {
 
   /** Son okumadan beri biriken fare hareketi */
   takeMouse(): [number, number] {
-    const r: [number, number] = [this.dx * this.sensitivity, this.dy * this.sensitivity];
+    const k = this.baseSens * settings.sensitivity;
+    const r: [number, number] = [this.dx * k, this.dy * k * (settings.invertY ? -1 : 1)];
     this.dx = this.dy = 0;
     return r;
   }
@@ -64,7 +70,10 @@ export class Input {
   }
 
   private down = (e: KeyboardEvent) => {
-    if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (this.suspended || tag === 'INPUT' || tag === 'SELECT') return;
+    if (e.code === 'KeyM' && !e.repeat) this.onMute();
+    if (e.code === 'Escape' && !this.locked) { this.onEscape(); return; }
     if (e.code === 'Tab') { e.preventDefault(); this.onScoreboard(true); }
     if (e.code === 'Space') e.preventDefault();
     this.keys.add(e.code);
@@ -75,11 +84,12 @@ export class Input {
   };
   private clear = () => { this.keys.clear(); this.fire = false; this.onScoreboard(false); };
   private move = (e: MouseEvent) => {
-    if (!this.locked) return;
+    if (!this.locked || this.suspended) return;
     this.dx += e.movementX;
     this.dy += e.movementY;
   };
   private mdown = (e: MouseEvent) => {
+    if (this.suspended) return;
     if (!this.locked) { this.lock(); return; }
     if (e.button === 0) this.fire = true;
   };
